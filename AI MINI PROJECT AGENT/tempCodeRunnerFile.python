@@ -1,0 +1,99 @@
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from nltk import FreqDist
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from nltk.tokenize import word_tokenize
+import os
+
+# Download required NLTK data if not already downloaded
+nltk.download('vader_lexicon')
+nltk.download('stopwords')
+nltk.download('punkt')
+nltk.download('wordnet')
+
+def load_movie_reviews():
+    """Load movie reviews from files"""
+    reviews = []
+    # Load positive reviews
+    for filename in os.listdir("positive"):
+        with open(f"positive/{filename}", 'r') as file:
+            reviews.append((file.read(), 'positive'))
+    # Load negative reviews
+    for filename in os.listdir("negative"):
+        with open(f"negative/{filename}", 'r') as file:
+            reviews.append((file.read(), 'negative'))
+    return reviews
+
+def process_review(text):
+    """Process the review text by:
+    - Converting to lowercase
+    - Removing punctuation
+    - Tokenizing
+    - Removing stopwords
+    - Lemmatizing"""
+    # Convert to lowercase
+    text = text.lower()
+    # Remove punctuation
+    text = ''.join([c if c.isalpha() or c.isspace() else '' for c in text])
+    # Tokenize
+    tokens = word_tokenize(text)
+    # Remove stopwords
+    stop_words = set(stopwords.words('english'))
+    filtered_tokens = [t for t in tokens if t not in stop_words]
+    # Lemmatize
+    lemmatizer = WordNetLemmatizer()
+    lemmas = [lemmatizer.lemmatize(t) for t in filtered_tokens]
+    return lemmas
+
+def sentiment_analysis(reviews):
+    """Perform sentiment analysis using VADER"""
+    sia = SentimentIntensityAnalyzer()
+    positive_count = 0
+    negative_count = 0
+    for text, label in reviews:
+        # Get sentiment scores
+        scores = sia.polarity_scores(text)
+        # Determine sentiment
+        if label == 'positive' and scores['compound'] > 0.5:
+            positive_count += 1
+        elif label == 'negative' and scores['compound'] < -0.5:
+            negative_count += 1
+    return positive_count, negative_count
+
+def train_sentiment_classifier(reviews):
+    """Train a simple sentiment classifier"""
+    from nltk.classify import NaiveBayesClassifier
+    # Create feature sets
+    features = []
+    for text, label in reviews:
+        features.append((dict((word, True) for word in process_review(text)), label))
+    # Train classifier
+    classifier = NaiveBayesClassifier.train(features)
+    return classifier
+
+def main():
+    # Load reviews
+    reviews = load_movie_reviews()
+    # Process reviews
+    processed_reviews = [(process_review(text), label) for text, label in reviews]
+    # Perform sentiment analysis
+    positive, negative = sentiment_analysis(reviews)
+    print(f"Positive sentiment count: {positive}")
+    print(f"Negative sentiment count: {negative}")
+    # Train classifier
+    classifier = train_sentiment_classifier(reviews)
+    # Test classifier with sample reviews
+    test_reviews = [
+        "I loved this movie!",
+        "This movie was terrible.",
+        "The acting was amazing.",
+        "The plot was boring."
+    ]
+    for review in test_reviews:
+        print(f"Review: {review}")
+        print(f"Sentiment: {classifier.classify(dict((word, True) for word in process_review(review)))}")
+        print("------------------------")
+
+if __name__ == "__main__":
+    main()
